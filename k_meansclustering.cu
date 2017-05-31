@@ -6,8 +6,6 @@
 
 int main(int argc, char *argv[]){
 	
-	char* infile_name;
-
 	if(argc != 4){
 		usage();
 		exit(-1);
@@ -31,16 +29,15 @@ int main(int argc, char *argv[]){
 		exit(-1);
 	}
 		
-	printf("\n***\n\tLoaded Filename: %s\n\tRows: %d\n\n", INFILE_NAME, ROWS); 
+	printf("\n***\n\tLoaded Filename: %s\n\tRows: %d\n\tColumns: %d\n\n", INFILE_NAME, ROWS, COLUMNS); 
+
+	DATASET = newDataset(COLUMNS, ROWS);
+	loadDataset(DATASET, INFILE_NAME);
 
 	return 1;
 }
 
 
-FILE* loadDataset(char *path){
-	return NULL;
-
-}
 
 void usage(){
 	printf("\n**Usage:*\n\tkmeans [in_filename] [out_filenameprefix] [k clusters > 0]\n\n" );

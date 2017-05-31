@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include "filetool.h"
 
 
 #ifndef DATASET_H
@@ -15,6 +15,7 @@ typedef struct dataset{
 }Dataset;
 
 
-Dataset* initializeDataset(int n_rows, int n_cols);
+Dataset* newDataset(int n_rows, int n_cols);
+void loadDataset(Dataset* dataset, char* path);
 
 #endif
