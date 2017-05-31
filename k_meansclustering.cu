@@ -33,7 +33,7 @@ int main(int argc, char *argv[]){
 
 	DATASET = newDataset(COLUMNS, ROWS);
 	loadDataset(DATASET, INFILE_NAME);
-
+	freeDataset(DATASET);
 	return 1;
 }
 

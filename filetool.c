@@ -5,7 +5,7 @@ int countFileTokens(char *path){
 
 	FILE *readfile;
 	char buffer[1024], *strptr = buffer, *test;
-	char delims[2] = {',', ' '};
+	const char *delims = " ";
 	int columns = 0;
 	
 	readfile = loadFile(path);
@@ -17,6 +17,7 @@ int countFileTokens(char *path){
 		strptr = NULL;
 		columns++;
 	}
+	fclose(readfile);
 	return columns;
 }
 
