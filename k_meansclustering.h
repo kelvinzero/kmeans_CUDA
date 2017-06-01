@@ -2,6 +2,7 @@
 #include<stdlib.h>
 #include "dataset.h"
 #include "filetool.h"
+#include "clusterdata.h"
 
 #ifndef K_MEANSCLUSTERING_H
 #define K_MEANSCLUSTERING_H

@@ -33,6 +33,7 @@ int main(int argc, char *argv[]){
 
 	DATASET = newDataset(COLUMNS, ROWS);
 	loadDataset(DATASET, INFILE_NAME);
+	clusterData(DATASET, K);
 	freeDataset(DATASET);
 	return 1;
 }
