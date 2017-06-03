@@ -2,6 +2,7 @@
 #include "kmeanskernel.h"
 
 int SHAREDATA_ROWS = 16;
+int MAXRUNS = 50;
 
 double* loadDatasetNumeric(Dataset* dataset);
 void setFirstClusters(double* centroids, double* records, int k, int rows, int cols);
@@ -11,57 +12,71 @@ void setFirstClusters(double* centroids, double* records, int k, int rows, int c
 / beginGpuCluster()	Sets up kernel and performs clustering
 /			Records find cluster on GPU, SSE performed on GPU	
 */
-double* beginGpuClustering(double* centroids, double *records, int k, int num_rows, int num_cols){
+double beginGpuClustering(double* centroids, double *records, int k, int num_rows, int num_cols){
 
 	cudaSetDevice(3);
 	cudaDeviceReset();
+
 	dim3 blockdim;
 	dim3 griddim;
+	dim3 blockdimSSE;
+
 	size_t sharedsize;
 	size_t clustersize;
 	size_t recordsize; 
-
-	blockdim.x = num_cols;
-	blockdim.y = SHAREDATA_ROWS;
-	griddim.x = 1;
-	griddim.y =  ceil((float)num_rows/SHAREDATA_ROWS);
-	sharedsize = SHAREDATA_ROWS * num_cols * sizeof(double);	
-	clustersize = k*num_cols*sizeof(double);
-	recordsize = num_rows*num_cols*sizeof(double);	
+	size_t sharedSSEsize;
 
 	double *d_centroids;
 	double *d_records;
-	
+	double *d_SSE;
+	double *h_SSE;
+	double lastSSE;
+	double currentSSE;
+
 	int i,j;
+
+	blockdim.x 	= num_cols;
+	blockdim.y 	= SHAREDATA_ROWS;
+	blockdimSSE.x 	= num_cols-1;
+	blockdimSSE.y 	= k;
+	griddim.x 	= 1;
+	griddim.y 	=  ceil((float)num_rows/SHAREDATA_ROWS);
+	h_SSE		= (double*)calloc(1, sizeof(double));	
+	sharedsize 	= SHAREDATA_ROWS * num_cols * sizeof(double);	
+	clustersize 	= k*num_cols*sizeof(double);
+	recordsize 	= num_rows*num_cols*sizeof(double);	
+	sharedSSEsize 	= k*(num_cols-1)*sizeof(double);
+
 	printf("\n\n");
-	printf("BlockDim.x: %d BlockDim.y: %d GridDim.x %d GridDim.y %d\n", blockdim.x, blockdim.y, griddim.x, griddim.y);
+	printf("Find clusters: BlockDim.x: %d BlockDim.y: %d GridDim.x %d GridDim.y %d\n", blockdim.x, blockdim.y, griddim.x, griddim.y);
+	printf("Calculate SSE: BlockDim.x: %d BlockDim.y: %d GridDim.x %d GridDim.y %d\n", blockdimSSE.x, blockdimSSE.y, 1, 1);
+	printf("\nAllocating/memcpy device memory\n");
 	cudaMalloc((void**)&d_centroids, clustersize);
 	cudaMalloc((void**)&d_records, recordsize);
+	cudaMalloc((void**)&d_SSE, sizeof(double));
 	cudaMemcpy(d_centroids, centroids, clustersize, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_records, records, recordsize, cudaMemcpyHostToDevice);
 	
-	findClosestClusters<<<griddim,blockdim, sharedsize>>>(d_centroids, k, d_records, num_rows, num_cols);
+	printf("\nClustering..\n");	
 	
-	cudaMemcpy(centroids, d_centroids, clustersize, cudaMemcpyDeviceToHost);
-	cudaMemcpy(records, d_records, recordsize, cudaMemcpyDeviceToHost);
+	i = 0;
+	currentSSE = 0;
+	lastSSE = 1;
+	while(i++ < MAXRUNS && lastSSE > currentSSE){
 
-	
-	printf("\n***\n\tCentroids:\n\n");
-	for(i = 0; i < k; i++){
-		printf("Centroid [%d]: ", i);
-		for(j = 0; j < num_cols; j++){
-			printf("%f ", centroids[i*num_cols+j]);
-		}
-		printf("\n");
+		lastSSE = currentSSE;
+		findClosestClusters<<<griddim,blockdim, sharedsize>>>(d_centroids, k, d_records, num_rows, num_cols);
+		cudaDeviceSynchronize();
+		calculateSSE<<<1, blockdimSSE, sharedSSEsize>>>(d_centroids, k, d_records, num_rows, num_cols, d_SSE);
+		cudaMemcpy(records, d_records, recordsize, cudaMemcpyDeviceToHost);
+		cudaMemcpy(h_SSE, d_SSE, sizeof(double), cudaMemcpyDeviceToHost);
+		cudaDeviceSynchronize();
+		currentSSE = h_SSE[0];
+		if(i == 1)
+			lastSSE = currentSSE+1;
+		printf("SSE: %lf\n", currentSSE);
 	}
-	printf("\nRecords:\n\n");
-	for(i = 0; i < 20; i++){
-		for(j = 0; j < num_cols; j++){
-			printf("%f ", records[i*num_cols+j]);
-		}
-		printf("\n");
-	}
-	return NULL;
+	return currentSSE;
 }
 
 /*
