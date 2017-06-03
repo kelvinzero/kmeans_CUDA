@@ -2,7 +2,7 @@
 
 
 /**
-/ Dataset() 	Createst a dataset
+/ dataset() 	Createst a dataset
 / 		Creates and allocates memory for a dataset
 */
 Dataset* newDataset(int num_cols, int num_rows){
@@ -38,7 +38,7 @@ void loadDataset(Dataset* dataset, char* path){
 		return;
 
 	FILE *readfile;
-	readfile = loadFile(path);
+	readfile = loadFile(path, "r");
 
 	if(!readfile){
 		printf("\n***\tError loading file name: %s\n\n", path);
@@ -67,6 +67,37 @@ void loadDataset(Dataset* dataset, char* path){
 		}
 	} 
 	fclose(readfile);
+}
+
+void writeData(Dataset* dataset, char* path)
+{
+	if (!testDataset(dataset, dataset->num_rows, dataset->num_cols))
+		return;
+
+	FILE *writeFile;
+	writeFile = loadFile(path, "w");
+
+	if (!writeFile){
+		printf("\n***\tError writing to: %s\n\n", path);
+		return;
+	}
+	char 	buffer[1024];
+	int 	thisrow, thiscolumn, num_rows, num_cols;
+	char**  records;
+
+	records = dataset->records;
+	num_rows = dataset->num_rows;
+	num_cols = dataset->num_cols;
+
+	for (thisrow = 0; thisrow < num_rows; thisrow++) 
+	{
+		for (thiscolumn = 0; thiscolumn < num_cols; thiscolumn++) 
+		{
+			fputs(records[thisrow*num_cols + thiscolumn], writeFile);
+			fputs("\n", writeFile);
+		}
+	}
+	fclose(writeFile);
 }
 
 /**

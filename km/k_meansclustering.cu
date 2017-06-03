@@ -34,6 +34,7 @@ int main(int argc, char *argv[]){
 	DATASET = newDataset(COLUMNS, ROWS);
 	loadDataset(DATASET, INFILE_NAME);
 	clusterData(DATASET, K);
+	writeData(DATASET, OUTFILE_PREFIX);
 	freeDataset(DATASET);
 	return 1;
 }

@@ -10,7 +10,7 @@
 int countFileRows(char *path);
 int countFileTokens(char *path);
 char* tokenizeLine(char *path);
-FILE* loadFile(char *path);
+FILE* loadFile(char *path, const char * mode);
 
 
 #endif

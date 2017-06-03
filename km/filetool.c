@@ -8,7 +8,7 @@ int countFileTokens(char *path){
 	const char *delims = " ";
 	int columns = 0;
 	
-	readfile = loadFile(path);
+	readfile = loadFile(path, "r");
 	if(!readfile)
 		return 0;
 	
@@ -27,7 +27,7 @@ int countFileRows(char *path){
 	char buffer[1024];
 	int rowcount;
 
-	readfile = loadFile(path);
+	readfile = loadFile(path, "r");
 	if(!readfile)
 		return 0;
 
@@ -37,10 +37,10 @@ int countFileRows(char *path){
 	return rowcount;
 }
 
-FILE* loadFile(char *path){
+FILE* loadFile(char *path, const char * mode){
 	
 	FILE *read_file;
-	if(!(read_file = fopen(path, "r"))){
+	if(!(read_file = fopen(path, mode))){
 		return NULL;
 	}
 	return read_file;

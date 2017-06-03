@@ -4,6 +4,7 @@ int SHAREDATA_ROWS = 16;
 
 double* loadDatasetNumeric(Dataset* dataset);
 void setFirstClusters(double* centroids, double* records, int k, int rows, int cols);
+extern __shared__ double s_records[];
 
 
 __device__ double euclideanDistance(double *record1, double *record2, int cols){
@@ -18,7 +19,7 @@ __device__ double euclideanDistance(double *record1, double *record2, int cols){
 
 __global__ void findClosestClusters(double* centroids, int k, double* records, int rows, int cols){
 
-	extern __shared__ double s_records[];
+	
 
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	int idy = blockIdx.y * blockDim.y + threadIdx.y;
