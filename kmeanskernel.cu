@@ -10,6 +10,40 @@ __device__ double euclideanDistance(double *record1, double *record2, int cols){
 	return sqrt(dist);
 }
 
+__global__ void calculateCentroidMeans(double* centroids, int k, double* records, int rows, int cols){
+
+	int i;
+	int count = 0;
+	int centroidNum = threadIdx.y;
+	double centroidAttribute = 0.0;
+
+	if(threadIdx.x >= cols || threadIdx.y >= k)
+		return;
+
+	for(i = 0; i < rows; i++){
+		int recordCentroidNum = (int)records[i*cols];
+		if(recordCentroidNum == centroidNum){
+			if(threadIdx.x == 0)
+				count++;	
+			else{
+				double recordVal = records[i*cols+threadIdx.x];
+				if(!isnan(recordVal)){
+					centroidAttribute += recordVal;
+				}
+			}
+		}
+	}
+	
+	if(threadIdx.x == 0)
+		centroids[centroidNum*cols] = count;
+
+	__syncthreads();
+
+	if(threadIdx.x > 0)
+		centroids[centroidNum*cols+threadIdx.x] = centroidAttribute / centroids[centroidNum*cols];
+
+}
+
 
 __global__ void findClosestClusters(double* centroids, int k, double* records, int rows, int cols){
 
@@ -39,5 +73,11 @@ __global__ void findClosestClusters(double* centroids, int k, double* records, i
 		
 		}
 		records[idy*cols] = s_records[sharedIdx];	
+		if(threadIdx.y == 0){
+			dim3 blockdim;
+			blockdim.x = cols;
+			blockdim.y = k;
+		        calculateCentroidMeans<<<1, blockdim>>>(centroids, k, records, rows, cols);
+		}
 	}
 }

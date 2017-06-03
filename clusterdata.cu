@@ -34,7 +34,7 @@ double* beginGpuClustering(double* centroids, double *records, int k, int num_ro
 	
 	int i,j;
 	printf("\n\n");
-	printf("Threads x %d Threads y %d Blocks x %d blocksy %d\n", blockdim.x, blockdim.y, griddim.x, griddim.y);
+	printf("BlockDim.x: %d BlockDim.y: %d GridDim.x %d GridDim.y %d\n", blockdim.x, blockdim.y, griddim.x, griddim.y);
 	cudaMalloc((void**)&d_centroids, clustersize);
 	cudaMalloc((void**)&d_records, recordsize);
 	cudaMemcpy(d_centroids, centroids, clustersize, cudaMemcpyHostToDevice);
@@ -45,14 +45,16 @@ double* beginGpuClustering(double* centroids, double *records, int k, int num_ro
 	cudaMemcpy(centroids, d_centroids, clustersize, cudaMemcpyDeviceToHost);
 	cudaMemcpy(records, d_records, recordsize, cudaMemcpyDeviceToHost);
 
+	
+	printf("\n***\n\tCentroids:\n\n");
 	for(i = 0; i < k; i++){
+		printf("Centroid [%d]: ", i);
 		for(j = 0; j < num_cols; j++){
 			printf("%f ", centroids[i*num_cols+j]);
 		}
 		printf("\n");
 	}
-	
-	printf("\n");
+	printf("\nRecords:\n\n");
 	for(i = 0; i < 20; i++){
 		for(j = 0; j < num_cols; j++){
 			printf("%f ", records[i*num_cols+j]);
@@ -78,7 +80,8 @@ double* clusterData(Dataset* dataset, int k){
 
 /**
 / loadDatasetNumeric()	Converts the set of strings to double values
-/						Loads a flattened double* array with record values
+/			Loads a flattened double* array with record values
+/			Numeric records and cluster records have an additional column (col+1)
 */
 double* loadDatasetNumeric(Dataset* dataset){
 
@@ -107,7 +110,7 @@ double* loadDatasetNumeric(Dataset* dataset){
 
 /**
 / setFirstClusters() 	Sets the initial cluster numbers and records
-						Assigned a random record value to each cluster
+/			Assigned a random record value to each cluster
 */
 void setFirstClusters(double* centroids, double* records, int k, int rows, int cols){
 
@@ -117,11 +120,12 @@ void setFirstClusters(double* centroids, double* records, int k, int rows, int c
 	srand((unsigned) time(&t));
 	int randn;
 
-	printf("***\n\tAssigning random clusters..\n\n");
+	printf("***\n\tAssigning random records to centroids..\n\n");
 
 	// set initial cluster numbers
 	for(i = 0; i < k; i++){
-		randn = abs(rand() % (rows-1));
+	
+	randn = abs(rand() % (rows-1));
 		int done = false;
 		
 		while(!done){
@@ -130,12 +134,10 @@ void setFirstClusters(double* centroids, double* records, int k, int rows, int c
 				if(randn == rands[r]){
 					done = false;
 					randn = abs(rand() % (rows-1));
-				}
-			}
-		}
+		}}}
 		
 		rands[i] = randn;
-		
+
 		for(j = 0; j < cols; j++){
 			if(j==0){
 				centroids[i*cols] = 0;
@@ -144,6 +146,14 @@ void setFirstClusters(double* centroids, double* records, int k, int rows, int c
 			else
 				centroids[i*cols+j] = records[randn * cols + j];
 		}
+	}
+	printf("\n***\n\tCentroids:\n\n");
+	for(i = 0; i < k; i++){
+		printf("Centroid [%d]: ", i);
+		for(j = 0; j < cols; j++){
+			printf("%f ", centroids[i*cols+j]);
+		}
+		printf("\n");
 	}
 	free(rands);
 }
