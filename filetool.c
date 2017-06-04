@@ -92,7 +92,6 @@ void writeClusterFiles(char *OUT_PREFIX, double *NUMERIC_RECORDS, double *CLUSTE
 		}
 		fputs("\n", files[recordCentroid]);
 	}	
-	
 	for(i = 0; i < K; i++)
 		fclose(files[i]);
 }
