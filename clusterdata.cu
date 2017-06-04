@@ -1,7 +1,7 @@
 #include "clusterdata.h"
-#include "kmeanskernel.h"
+#include "timing.h"
 
-int SHAREDATA_ROWS = 16;
+int SHAREDATA_ROWS = 64;
 int MAXRUNS = 50;
 
 double* loadDatasetNumeric(Dataset* dataset);
@@ -128,23 +128,53 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 	return currentSSE;
 }
 
+void beginCpuClustering(double *centroids, double* records, int k, int num_rows, int num_cols){
+
+    	float clustertime, ssetime;
+    	clock_t now, then;
+	clock_t nowsse, thensse;
+
+	double sse = 0;
+	double lastsse = 1;
+	int i = 0;
+
+	while(lastsse > sse && i++ < MAXRUNS) {
+		lastsse = sse;
+		then = clock();
+		cpu_findClosestCentroids(centroids, k, records, num_rows, num_cols);
+		now = clock();
+		thensse = clock();
+		sse = cpu_calculateSSE(centroids, k, records, num_rows, num_cols);
+		nowsse = clock();
+		
+		clustertime += timeCost(then, now);
+		ssetime += timeCost(thensse, nowsse);
+
+		if(i == 1)
+			lastsse = sse+1;
+	}
+	printf("\nClustering complete in %d iterations.\n", i-1);
+	printf("Total time cost: %f\n", ssetime+clustertime);
+	printf("Total recluster time: %f\n", clustertime);			
+	printf("Average recluster time: %f\n", clustertime/(i-1));
+	printf("Total SSE calculate time: %f\n", ssetime);
+	printf("Average SSE calculate time: %f\n", ssetime/(i-1));
+}
+
 /*
 / clusterData()		Converts the dataset to numeric values and centroids
 /					Clusters the records in the file into k centroids (gpu)
 /					Uses squared error check for convergence (gpu)
 */
-double* clusterData(Dataset* dataset, double **centroids, int k){
+double* clusterData(Dataset* dataset, double **centroids, int k, int gpu){
 
 	*centroids = (double*)calloc(k * (dataset->num_cols+1), sizeof(double));
 	double* numeric_records = loadDatasetNumeric(dataset);
-
-
-
 	setFirstClusters(*centroids, numeric_records, k, dataset->num_rows-1, dataset->num_cols+1);	
-
-
-
-	beginGpuClustering(*centroids, numeric_records, k, dataset->num_rows-1, dataset->num_cols+1);	
+	if(gpu)
+		beginGpuClustering(*centroids, numeric_records, k, dataset->num_rows-1, dataset->num_cols+1);	
+	else
+		beginCpuClustering(*centroids, numeric_records, k, dataset->num_rows-1, dataset->num_cols+1);
 
 	return numeric_records;
 }

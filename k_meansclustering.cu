@@ -6,7 +6,9 @@
 
 int main(int argc, char *argv[]){
 	
-	if(argc != 4){
+	int gpu;
+
+	if(argc != 5){
 		usage();
 		exit(-1);
 	}
@@ -17,7 +19,8 @@ int main(int argc, char *argv[]){
 	INFILE_NAME 	= argv[1];
 	OUTFILE_PREFIX 	= argv[2];
 
-	ROWS = countFileRows(INFILE_NAME);
+	gpu	= atoi(argv[4]);
+	ROWS 	= countFileRows(INFILE_NAME);
 	COLUMNS = countFileTokens(INFILE_NAME);
 
 	if(K == 0){
@@ -30,11 +33,16 @@ int main(int argc, char *argv[]){
 	}
 		
 	printf("\n***\n\tLoaded Filename: %s\n\tRows: %d\n\tColumns: %d\n\n", INFILE_NAME, ROWS, COLUMNS); 
+
+	if(gpu)
+		printf("Starting GPU clustering.\n\n");
+	else
+		printf("Starting CPU clustering.\n\n");
 	
 	DATASET = newDataset(COLUMNS, ROWS);
 	loadDataset(DATASET, INFILE_NAME);
 	CLUSTERS = (double**)malloc(sizeof(double*));
-	NUMERIC_RECORDS = clusterData(DATASET, CLUSTERS, K);
+	NUMERIC_RECORDS = clusterData(DATASET, CLUSTERS, K, gpu);
 	writeClusterFiles(OUTFILE_PREFIX, NUMERIC_RECORDS, *CLUSTERS, K, ROWS-1, COLUMNS+1);
 	free(NUMERIC_RECORDS);
 	free(*CLUSTERS);
@@ -46,5 +54,5 @@ int main(int argc, char *argv[]){
 
 
 void usage(){
-	printf("\n**Usage:*\n\tkmeans [in_filename] [out_filenameprefix] [k clusters > 0]\n\n" );
+	printf("\n**Usage:*\n\tkmeans [in_filename] [out_filenameprefix] [k clusters > 0] [cpu = 0, gpu = 1]\n\n" );
 }
