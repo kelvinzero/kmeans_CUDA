@@ -55,7 +55,7 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 	recordsize 	= num_rows*num_cols*sizeof(double);	
 	sharedSSEsize 	= k*(num_cols-1)*sizeof(double);
 
-	printf("\n\n");
+	printf("\n");
 	printf("Find clusters: BlockDim.x: %d BlockDim.y: %d GridDim.x %d GridDim.y %d\n", blockdim.x, blockdim.y, griddim.x, griddim.y);
 	printf("Calculate SSE: BlockDim.x: %d BlockDim.y: %d GridDim.x %d GridDim.y %d\n", blockdimSSE.x, blockdimSSE.y, 1, 1);
 	printf("\nAllocating/memcpy device memory\n");
@@ -222,7 +222,7 @@ void setFirstClusters(double* centroids, double* records, int k, int rows, int c
 	srand((unsigned) time(&t));
 	int randn;
 
-	printf("***\n\tAssigning random records to centroids..\n\n");
+	printf("Assigning random records to centroids..\n");
 
 	// set initial cluster numbers
 	for(i = 0; i < k; i++){
@@ -241,10 +241,8 @@ void setFirstClusters(double* centroids, double* records, int k, int rows, int c
 		rands[i] = randn;
 
 		for(j = 0; j < cols; j++){
-			if(j==0){
+			if(j==0)
 				centroids[i*cols] = 0;
-				printf("Assigning - Centroid: [%d] Record: [%d]\n", i, randn);
-			}
 			else
 				centroids[i*cols+j] = records[randn * cols + j];
 		}
