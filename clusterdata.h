@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "dataset.h"
 #include "kmeanscpu.h"
-#include "kmeanskernel.h"
+#include "clusterkernel.h"
 
 
 #ifndef CLUSTERDATA_H

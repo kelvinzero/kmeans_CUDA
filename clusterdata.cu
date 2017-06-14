@@ -20,6 +20,12 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 	dim3 blockdim;
 	dim3 griddim;
 	dim3 blockdimSSE;
+	dim3 griddimSSE;
+	dim3 blockdimReduce;
+
+	size_t centroidsPitch;
+	size_t resultsPitch;
+	size_t recordsPitch;
 
 	size_t sharedsize;
 	size_t clustersize;
@@ -28,6 +34,8 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 
 	double *d_centroids;
 	double *d_records;
+	double *d_results;
+	double *h_results;
 	double *d_SSE;
 	double *h_SSE;
 	double lastSSE;
@@ -35,7 +43,7 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 	double sseTime;
 	double totalTime;
 	float  time = 0;
-	int i;
+	int i,j;
 
    	cudaEvent_t launch_begin, launch_end, sse_begin, sse_end;
    	cudaEventCreate(&launch_begin);
@@ -43,27 +51,37 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
    	cudaEventCreate(&sse_begin);
    	cudaEventCreate(&sse_end);
 
-	blockdim.x 	= num_cols;
-	blockdim.y 	= SHAREDATA_ROWS;
+	blockdim.x 	= 1;
+	blockdim.y 	= 256;
 	blockdimSSE.x 	= num_cols-1;
-	blockdimSSE.y 	= k;
-	griddim.x 	= 1;
-	griddim.y 	=  ceil((float)num_rows/SHAREDATA_ROWS);
-	h_SSE		= (double*)calloc(1, sizeof(double));	
+	blockdimSSE.y 	= (int)(256/blockdimSSE.x);
+	griddimSSE.x 	= 1;
+	griddimSSE.y 	= ceil((float)num_rows/blockdimSSE.y);
+	griddim.x 	= 1;	
+	griddim.y 	= ceil((float)num_rows/256);
+	blockdimReduce.x = num_cols;
+	blockdimReduce.y = k;
+
+	h_SSE		= (double*)calloc(griddimSSE.y, sizeof(double));	
 	sharedsize 	= SHAREDATA_ROWS * num_cols * sizeof(double);	
 	clustersize 	= k*num_cols*sizeof(double);
 	recordsize 	= num_rows*num_cols*sizeof(double);	
-	sharedSSEsize 	= k*(num_cols-1)*sizeof(double);
+	sharedSSEsize 	= blockdimSSE.x * blockdimSSE.y * sizeof(double);
+	h_results	= (double*)malloc(griddim.y*k*num_cols*sizeof(double));
 
 	printf("\n");
 	printf("Find clusters: BlockDim.x: %d BlockDim.y: %d GridDim.x %d GridDim.y %d\n", blockdim.x, blockdim.y, griddim.x, griddim.y);
 	printf("Calculate SSE: BlockDim.x: %d BlockDim.y: %d GridDim.x %d GridDim.y %d\n", blockdimSSE.x, blockdimSSE.y, 1, 1);
 	printf("\nAllocating/memcpy device memory\n");
-	cudaMalloc((void**)&d_centroids, clustersize);
-	cudaMalloc((void**)&d_records, recordsize);
-	cudaMalloc((void**)&d_SSE, sizeof(double));
-	cudaMemcpy(d_centroids, centroids, clustersize, cudaMemcpyHostToDevice);
-	cudaMemcpy(d_records, records, recordsize, cudaMemcpyHostToDevice);
+
+	cudaMallocPitch((void**)&d_centroids, &centroidsPitch, num_cols*sizeof(double), k);
+	cudaMallocPitch((void**)&d_records, &recordsPitch, num_cols*sizeof(double), num_rows);
+	cudaMallocPitch((void**)&d_results, &resultsPitch, num_cols*sizeof(double), griddim.y*k);
+	cudaMalloc((void**)&d_SSE, griddimSSE.y*sizeof(double));
+
+	cudaMemcpy2D(d_centroids, centroidsPitch, centroids, num_cols*sizeof(double), num_cols*sizeof(double), k, cudaMemcpyHostToDevice);
+	cudaMemcpy2D(d_records, recordsPitch, records, num_cols*sizeof(double), num_cols*sizeof(double), num_rows, cudaMemcpyHostToDevice);
+	cudaMemcpy2D(d_results, resultsPitch, h_results, num_cols*sizeof(double), num_cols*sizeof(double), griddim.y*k, cudaMemcpyHostToDevice);
 	
 	printf("\nClustering..\n");	
 	
@@ -72,15 +90,16 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 	lastSSE = 1;
 	totalTime = 0;
 	sseTime = 0;
-	while(i++ < MAXRUNS && lastSSE > currentSSE){
-
+	while(i < MAXRUNS && lastSSE > currentSSE){
+		i++;
 		time = 0;
 		lastSSE = currentSSE;
 		
 		cudaEventRecord(launch_begin,0);
-		findClosestClusters<<<griddim,blockdim, sharedsize>>>(d_centroids, k, d_records, num_rows, num_cols);
+		findClosestClusters<<<griddim,blockdim, sharedsize>>>(d_centroids, centroidsPitch/sizeof(double), k, d_records, recordsPitch/sizeof(double),  num_rows, num_cols);
 		cudaDeviceSynchronize();
-
+		calculateCentroidMeans<<<1, blockdimReduce, clustersize>>>(d_centroids, centroidsPitch/sizeof(double), k, d_records, recordsPitch/sizeof(double), num_rows, num_cols); 
+		cudaDeviceSynchronize();
 		cudaEventRecord(launch_end,0);
 		cudaEventSynchronize(launch_end);
     		cudaEventElapsedTime(&time, launch_begin, launch_end);
@@ -89,29 +108,38 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 		time = 0;
 
 		cudaEventRecord(sse_begin,0);		
-		calculateSSE<<<1, blockdimSSE, sharedSSEsize>>>(d_centroids, k, d_records, num_rows, num_cols, d_SSE);
+		calculateSSE<<<griddimSSE, blockdimSSE, sharedSSEsize>>>(d_centroids, centroidsPitch/sizeof(double), d_records, recordsPitch/sizeof(double), num_rows, num_cols, d_SSE); 
+		cudaDeviceSynchronize();
 		cudaEventRecord(sse_end,0);
 		cudaEventSynchronize(sse_end);		
-    		cudaEventElapsedTime(&time, sse_begin, sse_end);
+  		cudaEventElapsedTime(&time, sse_begin, sse_end);
 		sseTime += (time/1000);
 		
-		cudaMemcpy(h_SSE, d_SSE, sizeof(double), cudaMemcpyDeviceToHost);
-		cudaDeviceSynchronize();
-		currentSSE = h_SSE[0];
+		cudaMemcpy(h_SSE, d_SSE, griddimSSE.y * sizeof(double),  cudaMemcpyDeviceToHost);
+		currentSSE=0;	
+		for(j = 0; j < griddimSSE.y; j++){
+			currentSSE += h_SSE[j];
+		}
 
 		if(i == 1)
 			lastSSE = currentSSE+1;
-
+		
 		if(lastSSE > currentSSE){
 			cudaMemcpy(records, d_records, recordsize, cudaMemcpyDeviceToHost);
 			cudaMemcpy(centroids, d_centroids, clustersize, cudaMemcpyDeviceToHost);
 		}
 		
 		time = 0;
-    		// measure the time spent in the kernel
 	}
+
+	cudaMemcpy2D(records, num_cols*sizeof(double), d_records, recordsPitch, num_cols*sizeof(double), num_rows, cudaMemcpyDeviceToHost);
+	cudaMemcpy2D(h_results, num_cols*sizeof(double), d_results, resultsPitch, num_cols*sizeof(double), k*griddim.y, cudaMemcpyDeviceToHost);
+	cudaMemcpy2D(centroids, num_cols*sizeof(double), d_centroids, centroidsPitch, num_cols*sizeof(double), k, cudaMemcpyDeviceToHost);
+	cudaDeviceSynchronize();
+
 	printf("\nClustering complete in %d iterations\n", i-1);
 	printf("Completed in %lf seconds\n", totalTime + sseTime);
+	printf("Average run time: %lf\n", (totalTime+sseTime)/(i-1));
 	printf("Total reclustering time: %lf\n", totalTime);
 	printf("Average time to recluster: %lf\n", totalTime/(i-1));
 	printf("Total SSE calculating time: %lf\n", sseTime);
@@ -153,12 +181,13 @@ void beginCpuClustering(double *centroids, double* records, int k, int num_rows,
 		if(i == 1)
 			lastsse = sse+1;
 	}
-	printf("\nClustering complete in %d iterations.\n", i-1);
-	printf("Total time cost: %f\n", ssetime+clustertime);
-	printf("Total recluster time: %f\n", clustertime);			
-	printf("Average recluster time: %f\n", clustertime/(i-1));
-	printf("Total SSE calculate time: %f\n", ssetime);
-	printf("Average SSE calculate time: %f\n", ssetime/(i-1));
+	printf("\nClustering complete in %d iterations\n", i-1);
+	printf("Completed in %lf seconds\n", clustertime + ssetime);
+	printf("Average run time: %lf\n", (clustertime+ssetime)/(i-1));
+	printf("Total reclustering time: %lf\n", clustertime);
+	printf("Average time to recluster: %lf\n", clustertime/(i-1));
+	printf("Total SSE calculating time: %lf\n", ssetime);
+	printf("Average time to calculate SSE: %lf\n", ssetime/(i-1));
 }
 
 /*
