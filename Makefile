@@ -4,7 +4,7 @@ CXX = g++
 OPT = -arch=sm_35 -rdc=true -lcudadevrt
 COPT = -lm
 # here are all the objects
-GPUOBJS = clusterkernel.o k_meansclustering.o clusterdata.cu #kmeanskernel.o
+GPUOBJS = clusterkernel.o k_meansclustering.o clusterdata.cu
  
 OBJS = dataset.o filetool.o kmeanscpu.o timing.o
 
@@ -14,6 +14,8 @@ kmeans: $(OBJS) $(GPUOBJS)
 	
 run: clean kmeans
 	./kmeans genedata.ssv clusterout 10 1
+
+all: clean kmeans shrinkfile gnuconvert devinfo
 
 k_meansclustering.o: k_meansclustering.cu k_meansclustering.h clusterdata.o
 	$(NVCC) $(OPT) -c k_meansclustering.cu 
@@ -26,9 +28,6 @@ timing.o : timing.c timing.h
 
 kmeanscpu.o : kmeanscpu.c kmeanscpu.h
 	$(CXX) $(COPT) -c kmeanscpu.c
-
-kmeanskernel.o : kmeanskernel.cu kmeanskernel.h
-	$(NVCC) $(OPT) -c kmeanskernel.cu 	
 
 clusterdata.o : clusterdata.cu clusterdata.h
 	$(NVCC) -c clusterdata.cu 	
@@ -46,7 +45,7 @@ gnuconvert: gnuconvert.c
 	$(CXX) -o gnuconvert gnuconvert.c
 
 devinfo: deviceinfo.cu
-	$(NVCC) $(OPT) -o devinfo deviceinfo.cu
+	$(NVCC) $(OPT) -w -o devinfo deviceinfo.cu
 
 clean:
 	clear

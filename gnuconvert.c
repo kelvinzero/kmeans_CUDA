@@ -5,7 +5,7 @@
 int main(int argc, char* argv[]){
 
 	if(argc != 3)
-		return;
+		exit(-99);
 
 	char *filein = argv[1];
 	char *fileout = argv[2];	
@@ -35,4 +35,5 @@ int main(int argc, char* argv[]){
 	} 
 	fclose(fin);
 	fclose(fout);
+	return -1;
 }
