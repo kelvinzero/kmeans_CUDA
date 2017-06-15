@@ -81,7 +81,6 @@ void cpu_findClosestCentroids(double* centroids, int k, double *records, int num
 		}
 		records[i*num_cols] = closestCluster;
 	}
-	cpu_calculateCentroidsMeans(centroids, k, records, num_rows, num_cols);
 }
 		
 	

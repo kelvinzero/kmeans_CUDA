@@ -42,9 +42,17 @@ filetool.o: filetool.c filetool.h
 shrinkfile: shrinkfile.c
 	$(CXX) -o shrinkfile shrinkfile.c
 
+gnuconvert: gnuconvert.c
+	$(CXX) -o gnuconvert gnuconvert.c
+
+devinfo: deviceinfo.cu
+	$(NVCC) $(OPT) -o devinfo deviceinfo.cu
+
 clean:
 	clear
 	rm -f *.o
 	rm -f kmeans
 	rm -f shrinkfile
+	rm -f gnuconvert
+	rm -f devinfo
 	rm -f *.CL* 

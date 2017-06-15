@@ -41,15 +41,18 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 	double lastSSE;
 	double currentSSE;
 	double sseTime;
+	double meansTime;
 	double totalTime;
 	float  time = 0;
 	int i,j;
 
-   	cudaEvent_t launch_begin, launch_end, sse_begin, sse_end;
+   	cudaEvent_t launch_begin, launch_end, sse_begin, sse_end, means_begin, means_end;
    	cudaEventCreate(&launch_begin);
    	cudaEventCreate(&launch_end);
    	cudaEventCreate(&sse_begin);
    	cudaEventCreate(&sse_end);
+   	cudaEventCreate(&means_begin);
+   	cudaEventCreate(&means_end);
 
 	blockdim.x 	= 1;
 	blockdim.y 	= 256;
@@ -97,14 +100,20 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 		
 		cudaEventRecord(launch_begin,0);
 		findClosestClusters<<<griddim,blockdim, sharedsize>>>(d_centroids, centroidsPitch/sizeof(double), k, d_records, recordsPitch/sizeof(double),  num_rows, num_cols);
-		cudaDeviceSynchronize();
-		calculateCentroidMeans<<<1, blockdimReduce, clustersize>>>(d_centroids, centroidsPitch/sizeof(double), k, d_records, recordsPitch/sizeof(double), num_rows, num_cols); 
-		cudaDeviceSynchronize();
+		cudaDeviceSynchronize();	
 		cudaEventRecord(launch_end,0);
 		cudaEventSynchronize(launch_end);
     		cudaEventElapsedTime(&time, launch_begin, launch_end);
-
 		totalTime += (time/1000);
+		time = 0;
+
+		cudaEventRecord(means_begin,0);
+		calculateCentroidMeans<<<1, blockdimReduce, clustersize>>>(d_centroids, centroidsPitch/sizeof(double), k, d_records, recordsPitch/sizeof(double), num_rows, num_cols); 
+		cudaEventRecord(means_end, 0);
+		cudaDeviceSynchronize();
+		cudaEventSynchronize(means_end);
+		cudaEventElapsedTime(&time, means_begin, means_end);
+		meansTime += (time/1000);
 		time = 0;
 
 		cudaEventRecord(sse_begin,0);		
@@ -138,10 +147,12 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 	cudaDeviceSynchronize();
 
 	printf("\nClustering complete in %d iterations\n", i-1);
-	printf("Completed in %lf seconds\n", totalTime + sseTime);
-	printf("Average run time: %lf\n", (totalTime+sseTime)/(i-1));
+	printf("Completed in %lf seconds\n", totalTime + sseTime + meansTime);
+	printf("Average run time: %lf\n", (totalTime+sseTime + meansTime)/(i-1));
 	printf("Total reclustering time: %lf\n", totalTime);
 	printf("Average time to recluster: %lf\n", totalTime/(i-1));
+	printf("Total means calculating time: %lf\n", meansTime);
+	printf("Average means calculating time: %lf\n", meansTime/(i-1));
 	printf("Total SSE calculating time: %lf\n", sseTime);
 	printf("Average time to calculate SSE: %lf\n", sseTime/(i-1));
 	free(h_SSE);
@@ -158,9 +169,10 @@ double beginGpuClustering(double* centroids, double *records, int k, int num_row
 
 void beginCpuClustering(double *centroids, double* records, int k, int num_rows, int num_cols){
 
-    	float clustertime, ssetime;
+    	float clustertime = 0, meanstime = 0, ssetime = 0;
     	clock_t now, then;
 	clock_t nowsse, thensse;
+	clock_t thenmeans, nowmeans;
 
 	double sse = 0;
 	double lastsse = 1;
@@ -174,7 +186,10 @@ void beginCpuClustering(double *centroids, double* records, int k, int num_rows,
 		thensse = clock();
 		sse = cpu_calculateSSE(centroids, k, records, num_rows, num_cols);
 		nowsse = clock();
-		
+		thenmeans = clock();
+		cpu_calculateCentroidsMeans(centroids, k, records, num_rows, num_cols);
+		nowmeans = clock();
+		meanstime += timeCost(thenmeans, nowmeans);
 		clustertime += timeCost(then, now);
 		ssetime += timeCost(thensse, nowsse);
 
@@ -182,10 +197,12 @@ void beginCpuClustering(double *centroids, double* records, int k, int num_rows,
 			lastsse = sse+1;
 	}
 	printf("\nClustering complete in %d iterations\n", i-1);
-	printf("Completed in %lf seconds\n", clustertime + ssetime);
-	printf("Average run time: %lf\n", (clustertime+ssetime)/(i-1));
+	printf("Completed in %lf seconds\n", clustertime + ssetime + meanstime);
+	printf("Average run time: %lf\n", (clustertime+ssetime + meanstime)/(i-1));
 	printf("Total reclustering time: %lf\n", clustertime);
 	printf("Average time to recluster: %lf\n", clustertime/(i-1));
+	printf("Total means calculating time: %lf\n", meanstime);
+	printf("Average means calculating time: %lf\n", meanstime/(i-1));
 	printf("Total SSE calculating time: %lf\n", ssetime);
 	printf("Average time to calculate SSE: %lf\n", ssetime/(i-1));
 }
