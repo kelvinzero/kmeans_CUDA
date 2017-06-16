@@ -55,7 +55,7 @@ void writeClusterFiles(char *OUT_PREFIX, double *NUMERIC_RECORDS, double *CLUSTE
 
 	printf("\nWriting cluster files...\n\n");
 	
-	FILE ** files = (FILE**)malloc(sizeof(FILE*));
+	FILE ** files = (FILE**)malloc(K * sizeof(FILE*));
 	for(i = 0; i < K; i++){
 		fnameBuffer[0] = '\0';
 		sprintf(numHolder, "%d",  i+1);
@@ -92,6 +92,7 @@ void writeClusterFiles(char *OUT_PREFIX, double *NUMERIC_RECORDS, double *CLUSTE
 		}
 		fputs("\n", files[recordCentroid]);
 	}	
-	for(i = 0; i < K-1; i++)
+	for(i = 0; i < K; i++)
 		fclose(files[i]);
+	free(files);
 }
